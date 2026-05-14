@@ -765,7 +765,7 @@ function renderMatches() {
     const label = key.replace(/^\d_/,'');
     html += `<div class="sec-head"><h3>⚽ ${label}</h3></div>`;
     groups[key].sort((a,b) => new Date(a.kickoff_datetime) - new Date(b.kickoff_datetime))
-      .forEach(m => { html += buildCard(m); });
+      .forEach(m => { html += buildCard(m, true); });
   });
 
   document.getElementById('matches-list').innerHTML = html ||
@@ -775,7 +775,7 @@ function renderMatches() {
 // ================================================================
 // BUILD MATCH CARD
 // ================================================================
-function buildCard(m) {
+function buildCard(m, readOnly = false) {
   const { match_id: mid, home_team: ht, away_team: at,
           kickoff_datetime: ko, status, stage, round,
           locked, can_edit, show_all_predictions,
@@ -818,7 +818,7 @@ function buildCard(m) {
   if (isVoid) {
     predHtml = '<div class="locked-msg">⚪ Match voided — no points awarded</div>';
 
-  } else if (can_edit) {
+  } else if (can_edit && !readOnly) {
     // Editable form
     const ph = up ? up.pred_home_score_90 : '';
     const pa = up ? up.pred_away_score_90 : '';
