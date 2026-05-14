@@ -972,7 +972,7 @@ async function savePred(mid, stage, ht, at) {
     if (r.success) {
       toast('Saved ✅', 'ok');
       // Update local state
-      const match = matches.find(m => m.match_id.toString() === mid.toString());
+      const match = matches.find(m => m.match_id && m.match_id.toString() === mid.toString());
       if (match) {
         match.user_prediction = {
           pred_home_score_90: parseInt(ph), pred_away_score_90: parseInt(pa),
