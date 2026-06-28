@@ -987,9 +987,9 @@ function buildCard(m) {
         <div class="plabel">Your prediction</div>
         ${savedPill}
         <div class="score-row">
-          <input class="score-inp" id="h_${mid}" type="number" min="0" max="20" value="${ph}" placeholder="0">
+          <input class="score-inp" id="h_${mid}" type="text" inputmode="numeric" pattern="[0-9]*" value="${ph}" placeholder="0" oninput="scoreInput('${mid}','h')" onfocus="this.select()">
           <span class="score-sep">—</span>
-          <input class="score-inp" id="a_${mid}" type="number" min="0" max="20" value="${pa}" placeholder="0">
+          <input class="score-inp" id="a_${mid}" type="text" inputmode="numeric" pattern="[0-9]*" value="${pa}" placeholder="0" oninput="scoreInput('${mid}','a')" onkeydown="scoreKey('${mid}','a',event)" onfocus="this.select()">
         </div>
         ${koFields}
         <button class="btn-save" id="bs_${mid}"
@@ -1151,6 +1151,32 @@ document.addEventListener('click', function(e) {
   document.querySelectorAll('.sc-panel').forEach(p => { p.hidden = true; });
   document.querySelectorAll('.sc-field.open').forEach(f => f.classList.remove('open'));
 }, true);
+
+// ================================================================
+// SCORE INPUTS — single digit, auto-advance home -> away
+// ================================================================
+function scoreInput(mid, which) {
+  const el = document.getElementById((which === 'h' ? 'h_' : 'a_') + mid);
+  if (!el) return;
+  let v = (el.value || '').replace(/[^0-9]/g, '');
+  if (v.length > 1) v = v.slice(-1);        // keep only the most recent digit
+  if (v !== el.value) el.value = v;
+  if (which === 'h' && v.length === 1) {     // a digit was entered in home -> jump to away
+    const away = document.getElementById('a_' + mid);
+    if (away) { away.focus(); away.select(); }
+  }
+}
+
+function scoreKey(mid, which, e) {
+  // Backspace on an empty away box jumps back to home
+  if (which === 'a' && e.key === 'Backspace') {
+    const away = document.getElementById('a_' + mid);
+    if (away && away.value === '') {
+      const home = document.getElementById('h_' + mid);
+      if (home) { e.preventDefault(); home.focus(); home.select(); }
+    }
+  }
+}
 
 // ================================================================
 // SAVE PREDICTION
