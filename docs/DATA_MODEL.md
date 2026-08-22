@@ -133,3 +133,39 @@ prevents the synchroniser from replacing a manually corrected kickoff time.
 - A void Golden Match may be replaced only by an upcoming match in the same
   matchday.
 - The frontend must render Golden Match cards with a distinct visual treatment.
+
+## Serie A player and game sheets
+
+### Players_SerieA
+
+```text
+player_id | name | pin_salt | pin_hash | email | active | created_at
+```
+
+Players keep the same PIN from their point of view. The new sheet stores a
+salted hash, not the PIN itself. Login returns a short-lived session token that
+must accompany prediction writes.
+
+### Predictions_SerieA
+
+```text
+prediction_id | player_id | match_id | pred_home_score | pred_away_score |
+submitted_at | updated_at | points | scoring_version
+```
+
+This sheet starts empty. The intended unique key remains `(player_id, match_id)`.
+
+### Leaderboard_SerieA
+
+```text
+rank | player_id | player_name | total_points | exact_scores |
+correct_outcomes | golden_matches_scored | golden_points |
+predictions_submitted | missed_predictions | last_matchday_points |
+most_wrong_prediction | updated_at
+```
+
+### Audit_Log_SerieA
+
+```text
+timestamp | action | player_id | match_id | old_value | new_value | source
+```
