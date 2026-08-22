@@ -223,7 +223,7 @@ function fetchSerieAFixtures_() {
 
   const response = UrlFetchApp.fetch(url, {
     method: 'get',
-    headers: { 'X-Auth-Token': getFootballApiKey() },
+    headers: { 'X-Auth-Token': getSerieAFootballApiKey_() },
     muteHttpExceptions: true
   });
 
@@ -239,6 +239,15 @@ function fetchSerieAFixtures_() {
   }
 
   return payload.matches;
+}
+
+function getSerieAFootballApiKey_() {
+  const key = PropertiesService.getScriptProperties()
+    .getProperty('FOOTBALL_API_KEY');
+  if (!key) {
+    throw new Error('Missing FOOTBALL_API_KEY script property');
+  }
+  return key;
 }
 
 function validateSerieAMatchHeaders_(sheet) {
