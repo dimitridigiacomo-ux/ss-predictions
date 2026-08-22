@@ -101,3 +101,14 @@ stage such as `league`, retain `matchday` for values 1–38, and make knockout-o
 fields optional. Store a provider match ID so rescheduled fixtures and result
 sync do not rely only on team names.
 
+The first development version uses an isolated `Matches_SerieA` tab:
+
+```text
+match_id | provider | provider_match_id | competition_id | season_id |
+round | stage | matchday | home_team_id | home_team | away_team_id |
+away_team | kickoff_datetime | status | home_score | away_score |
+provider_last_updated | last_synced_at | manual_kickoff_override | notes
+```
+
+`provider_match_id` is the upsert key. Setting `manual_kickoff_override` to TRUE
+prevents the synchroniser from replacing a manually corrected kickoff time.

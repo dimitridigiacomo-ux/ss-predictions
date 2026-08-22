@@ -17,3 +17,22 @@ removed from source control.
 Do not reuse the token that appeared in the original pasted source. It must be
 revoked or regenerated before result synchronisation is used again.
 
+## Serie A fixture module
+
+`SerieAMatches.gs` is isolated from the live World Cup data. It uses a separate
+`Matches_SerieA` tab and supports:
+
+- read-only API preview;
+- initial season import;
+- updates by stable provider match ID;
+- postponed/rescheduled fixtures;
+- manual kickoff overrides;
+- a six-hour synchronisation trigger.
+
+Run functions in this order in the development Apps Script project:
+
+1. `previewSerieAFixtures()`
+2. `setupSerieAMatchesSheet()`
+3. `syncSerieAFixtures()`
+4. `createSerieAFixtureSyncTrigger()` after the imported fixtures have been
+   checked.
