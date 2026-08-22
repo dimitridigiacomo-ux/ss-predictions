@@ -9,10 +9,12 @@ const SERIE_A_CONFIG = Object.freeze({
   seasonId: '2026-27',
   sheetName: 'Matches_SerieA',
   provider: 'football-data.org',
-  syncEveryHours: 6
+  syncEveryHours: 6,
+  goldenLookaheadDays: 7,
+  goldenMultiplier: 3
 });
 
-const SERIE_A_MATCH_HEADERS = Object.freeze([
+const SERIE_A_BASE_MATCH_HEADERS = Object.freeze([
   'match_id',
   'provider',
   'provider_match_id',
@@ -35,6 +37,14 @@ const SERIE_A_MATCH_HEADERS = Object.freeze([
   'notes'
 ]);
 
+const SERIE_A_MATCH_HEADERS = Object.freeze(
+  SERIE_A_BASE_MATCH_HEADERS.concat([
+    'is_golden',
+    'points_multiplier',
+    'golden_selected_at'
+  ])
+);
+
 /**
  * Creates the development tab without changing or deleting the existing
  * World Cup Matches tab. Safe to run more than once.
@@ -53,11 +63,18 @@ function setupSerieAMatchesSheet() {
     sheet.setFrozenRows(1);
     sheet.getRange('M:M').setNumberFormat('yyyy-mm-dd hh:mm');
     sheet.getRange('Q:R').setNumberFormat('yyyy-mm-dd hh:mm:ss');
+    sheet.getRange('W:W').setNumberFormat('yyyy-mm-dd hh:mm:ss');
     return { success: true, created: true, sheet: SERIE_A_CONFIG.sheetName };
   }
 
-  validateSerieAMatchHeaders_(sheet);
-  return { success: true, created: false, sheet: SERIE_A_CONFIG.sheetName };
+  const columnsAdded = ensureSerieAMatchHeaders_(sheet);
+  sheet.getRange('W:W').setNumberFormat('yyyy-mm-dd hh:mm:ss');
+  return {
+    success: true,
+    created: false,
+    columns_added: columnsAdded,
+    sheet: SERIE_A_CONFIG.sheetName
+  };
 }
 
 /**
@@ -156,6 +173,14 @@ function syncSerieAFixtures() {
       setField_(row, col, 'away_score', serieAScore_(match, 'away'));
       setField_(row, col, 'provider_last_updated',
         match.lastUpdated ? new Date(match.lastUpdated) : '');
+      if (row[col.is_golden] === '' || row[col.is_golden] === null ||
+          row[col.is_golden] === undefined) {
+        setField_(row, col, 'is_golden', false);
+      }
+      if (row[col.points_multiplier] === '' || row[col.points_multiplier] === null ||
+          row[col.points_multiplier] === undefined) {
+        setField_(row, col, 'points_multiplier', 1);
+      }
       const providerChanged = JSON.stringify(row) !== beforeProviderUpdate;
       setField_(row, col, 'last_synced_at', now);
 
@@ -167,6 +192,8 @@ function syncSerieAFixtures() {
         updated++;
       }
     });
+
+    const goldenSelections = assignUpcomingGoldenMatches_(rows, col, now);
 
     rows.sort((a, b) => {
       const matchdayDiff = Number(a[col.matchday] || 999) - Number(b[col.matchday] || 999);
@@ -189,6 +216,7 @@ function syncSerieAFixtures() {
       added,
       updated,
       total_rows: rows.length,
+      golden_matches_selected: goldenSelections,
       synced_at: now.toISOString()
     };
   } finally {
@@ -250,15 +278,25 @@ function getSerieAFootballApiKey_() {
   return key;
 }
 
-function validateSerieAMatchHeaders_(sheet) {
-  const lastColumn = Math.max(sheet.getLastColumn(), SERIE_A_MATCH_HEADERS.length);
+function ensureSerieAMatchHeaders_(sheet) {
+  const lastColumn = Math.max(sheet.getLastColumn(), 1);
   const headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0];
-  const missing = SERIE_A_MATCH_HEADERS.filter(header => headers.indexOf(header) === -1);
-  if (missing.length) {
+  const missingBase = SERIE_A_BASE_MATCH_HEADERS
+    .filter(header => headers.indexOf(header) === -1);
+  if (missingBase.length) {
     throw new Error(
-      'The ' + SERIE_A_CONFIG.sheetName + ' tab is missing columns: ' + missing.join(', ')
+      'The ' + SERIE_A_CONFIG.sheetName + ' tab is missing base columns: ' +
+      missingBase.join(', ')
     );
   }
+
+  const columnsToAdd = SERIE_A_MATCH_HEADERS
+    .filter(header => headers.indexOf(header) === -1);
+  if (columnsToAdd.length) {
+    sheet.getRange(1, lastColumn + 1, 1, columnsToAdd.length)
+      .setValues([columnsToAdd]);
+  }
+  return columnsToAdd;
 }
 
 function headerMap_(headers) {
@@ -322,6 +360,75 @@ function canEditSerieAMatch_(match, lockMinutes, now) {
 
 function shouldScoreSerieAMatch_(match) {
   return (match.status || '').toString().trim().toLowerCase() === 'finished';
+}
+
+/**
+ * Selects one persisted Golden Match for each matchday entering the next
+ * seven-day window. Existing valid selections never change. The random choice
+ * is written to the sheet, so all players always see the same match.
+ */
+function assignUpcomingGoldenMatches_(rows, col, now) {
+  const byMatchday = {};
+  rows.forEach((row, index) => {
+    const matchday = row[col.matchday];
+    if (matchday === '' || matchday === null || matchday === undefined) return;
+    const key = matchday.toString();
+    if (!byMatchday[key]) byMatchday[key] = [];
+    byMatchday[key].push(index);
+  });
+
+  const selected = [];
+  const selectionCutoff = now.getTime() +
+    SERIE_A_CONFIG.goldenLookaheadDays * 24 * 60 * 60 * 1000;
+
+  Object.keys(byMatchday).forEach(matchday => {
+    const indexes = byMatchday[matchday];
+    let goldenIndexes = indexes.filter(index => truthy_(rows[index][col.is_golden]));
+
+    if (goldenIndexes.length > 1) {
+      throw new Error('More than one Golden Match exists for matchday ' + matchday);
+    }
+
+    if (goldenIndexes.length === 1) {
+      const currentIndex = goldenIndexes[0];
+      const currentStatus = (rows[currentIndex][col.status] || '').toString().toLowerCase();
+      if (currentStatus !== 'void') return;
+
+      setField_(rows[currentIndex], col, 'is_golden', false);
+      setField_(rows[currentIndex], col, 'points_multiplier', 1);
+      setField_(rows[currentIndex], col, 'golden_selected_at', '');
+      goldenIndexes = [];
+    }
+
+    const candidates = indexes.filter(index => {
+      const row = rows[index];
+      const status = (row[col.status] || '').toString().toLowerCase();
+      const kickoff = dateValue_(row[col.kickoff_datetime]);
+      return status === 'upcoming' && kickoff > now.getTime();
+    });
+    if (!candidates.length) return;
+
+    const earliestKickoff = Math.min.apply(null, candidates.map(index =>
+      dateValue_(rows[index][col.kickoff_datetime])
+    ));
+    if (earliestKickoff > selectionCutoff) return;
+
+    const chosenIndex = candidates[Math.floor(Math.random() * candidates.length)];
+    const chosenRow = rows[chosenIndex];
+    setField_(chosenRow, col, 'is_golden', true);
+    setField_(chosenRow, col, 'points_multiplier', SERIE_A_CONFIG.goldenMultiplier);
+    setField_(chosenRow, col, 'golden_selected_at', now);
+
+    selected.push({
+      matchday: Number(matchday),
+      match_id: chosenRow[col.match_id],
+      home_team: chosenRow[col.home_team],
+      away_team: chosenRow[col.away_team],
+      multiplier: SERIE_A_CONFIG.goldenMultiplier
+    });
+  });
+
+  return selected;
 }
 
 function serieAScore_(match, side) {
