@@ -112,3 +112,13 @@ provider_last_updated | last_synced_at | manual_kickoff_override | notes
 
 `provider_match_id` is the upsert key. Setting `manual_kickoff_override` to TRUE
 prevents the synchroniser from replacing a manually corrected kickoff time.
+
+### Postponement policy
+
+- An upcoming match is editable until its configured lock time.
+- A postponed match keeps every existing prediction. It becomes editable again
+  only after a valid future kickoff is available and remains editable until the
+  new lock time.
+- A suspended match stays locked.
+- A cancelled match is stored as `void` and is excluded from scoring.
+- Fixture synchronisation never deletes prediction rows.

@@ -291,10 +291,37 @@ function mapSerieAStatus_(providerStatus) {
     FINISHED: 'finished',
     POSTPONED: 'postponed',
     SUSPENDED: 'suspended',
-    CANCELLED: 'cancelled',
+    // A permanently cancelled match is treated as void and never scored.
+    CANCELLED: 'void',
     AWARDED: 'finished'
   };
   return statuses[providerStatus] || (providerStatus || 'unknown').toString().toLowerCase();
+}
+
+/**
+ * Central Serie A editing rule, ready to be used by the new API layer.
+ *
+ * - upcoming: editable until the normal lock time;
+ * - postponed: editable only when the provider supplies a future kickoff that
+ *   is still before lock;
+ * - live/suspended/finished/void: never editable.
+ */
+function canEditSerieAMatch_(match, lockMinutes, now) {
+  const status = (match.status || '').toString().trim().toLowerCase();
+  if (status !== 'upcoming' && status !== 'postponed') return false;
+
+  const kickoff = match.kickoff_datetime instanceof Date
+    ? match.kickoff_datetime
+    : new Date(match.kickoff_datetime);
+  if (isNaN(kickoff.getTime())) return false;
+
+  const referenceTime = now instanceof Date ? now : new Date();
+  const lockTime = kickoff.getTime() - Number(lockMinutes || 0) * 60 * 1000;
+  return referenceTime.getTime() < lockTime;
+}
+
+function shouldScoreSerieAMatch_(match) {
+  return (match.status || '').toString().trim().toLowerCase() === 'finished';
 }
 
 function serieAScore_(match, side) {
