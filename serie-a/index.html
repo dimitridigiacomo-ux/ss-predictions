@@ -234,19 +234,61 @@
       letter-spacing: .06em;
       text-transform: uppercase;
     }
-    .teams { margin: 18px 0 6px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; }
+    .teams { margin: 18px 0 12px; display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 12px; }
     .team { display: grid; justify-items: center; gap: 8px; text-align: center; font-size: 13px; font-weight: 850; }
-    .crest {
-      width: 46px;
-      height: 46px;
-      border: 1px solid rgba(255,255,255,.13);
-      border-radius: 15px;
-      background: rgba(255,255,255,.07);
-      display: grid;
-      place-items: center;
-      font-size: 13px;
+    .score-input {
+      width: 64px;
+      height: 58px;
+      border: 1px solid rgba(255,255,255,.20);
+      border-radius: 16px;
+      background: rgba(255,255,255,.08);
+      color: var(--white);
+      font: inherit;
+      font-size: 23px;
       font-weight: 900;
-      letter-spacing: .02em;
+      text-align: center;
+      outline: none;
+      transition: border-color .18s ease, background .18s ease, box-shadow .18s ease;
+      appearance: textfield;
+    }
+    .score-input::-webkit-inner-spin-button,
+    .score-input::-webkit-outer-spin-button { margin: 0; appearance: none; }
+    .score-input:focus {
+      border-color: var(--green);
+      background: rgba(39,194,129,.10);
+      box-shadow: 0 0 0 4px rgba(39,194,129,.12);
+    }
+    .golden .score-input:focus {
+      border-color: var(--gold);
+      background: rgba(243,198,78,.10);
+      box-shadow: 0 0 0 4px rgba(243,198,78,.12);
+    }
+    .score-input:disabled { cursor: not-allowed; opacity: .58; }
+    .prediction-save {
+      width: 100%;
+      min-height: 43px;
+      border: 0;
+      border-radius: 13px;
+      background: var(--green);
+      color: #041a12;
+      font: inherit;
+      font-size: 11px;
+      font-weight: 950;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+    }
+    .prediction-save:hover:not(:disabled) { filter: brightness(1.08); }
+    .prediction-save:disabled { cursor: not-allowed; opacity: .55; }
+    .golden .prediction-save { background: var(--gold); color: #2b2005; }
+    .prediction-save.saved { background: #dff9ed; color: #0a6843; }
+    .prediction-save.locked { background: rgba(255,255,255,.10); color: var(--muted); }
+    .prediction-save:focus-visible { outline: 3px solid rgba(255,255,255,.35); outline-offset: 2px; }
+    .score-input::placeholder { color: rgba(255,255,255,.34); }
+    .team-name {
+      max-width: 150px;
+      min-height: 32px;
+      display: grid;
+      place-items: start center;
     }
     .versus { color: var(--muted); font-size: 12px; font-weight: 900; }
 
@@ -404,6 +446,7 @@
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('login-form').addEventListener('submit', login);
       document.getElementById('user-button').addEventListener('click', logout);
+      document.getElementById('upcoming-list').addEventListener('submit', savePrediction);
       const saved = localStorage.getItem(SESSION_KEY);
       if (!saved) return;
       try {
@@ -524,18 +567,85 @@
 
     function matchCard(match) {
       const golden = Boolean(match.is_golden);
+      const prediction = match.user_prediction || {};
+      const homeScore = prediction.pred_home_score ?? '';
+      const awayScore = prediction.pred_away_score ?? '';
+      const hasPrediction = homeScore !== '' && awayScore !== '';
+      const canEdit = Boolean(match.can_edit);
       return `
         <article class="card match-card ${golden ? 'golden' : ''}">
           <div class="match-meta">
             <span>Matchday ${escapeHtml(match.matchday)}</span>
             ${golden ? '<span class="golden-tag">★ Golden · ×3</span>' : `<span>${formatKickoff(match.kickoff_datetime)}</span>`}
           </div>
-          <div class="teams">
-            <div class="team"><div class="crest">${initials(match.home_team)}</div><span>${escapeHtml(match.home_team)}</span></div>
-            <div class="versus">${golden ? formatKickoff(match.kickoff_datetime) : 'VS'}</div>
-            <div class="team"><div class="crest">${initials(match.away_team)}</div><span>${escapeHtml(match.away_team)}</span></div>
-          </div>
+          <form class="prediction-form" data-match-id="${escapeHtml(match.match_id)}">
+            <div class="teams">
+              <label class="team">
+                <input class="score-input" name="home_score" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="–" value="${escapeHtml(homeScore)}" aria-label="Goals for ${escapeHtml(match.home_team)}" ${canEdit ? '' : 'disabled'} required>
+                <span class="team-name">${escapeHtml(match.home_team)}</span>
+              </label>
+              <div class="versus">${golden ? formatKickoff(match.kickoff_datetime) : 'VS'}</div>
+              <label class="team">
+                <input class="score-input" name="away_score" type="number" inputmode="numeric" min="0" max="99" step="1" placeholder="–" value="${escapeHtml(awayScore)}" aria-label="Goals for ${escapeHtml(match.away_team)}" ${canEdit ? '' : 'disabled'} required>
+                <span class="team-name">${escapeHtml(match.away_team)}</span>
+              </label>
+            </div>
+            <button class="prediction-save ${canEdit ? '' : 'locked'}" type="submit" ${canEdit ? '' : 'disabled'}>${canEdit ? (hasPrediction ? 'Update prediction' : 'Save prediction') : 'Prediction locked'}</button>
+          </form>
         </article>`;
+    }
+
+    async function savePrediction(event) {
+      const form = event.target.closest('.prediction-form');
+      if (!form) return;
+      event.preventDefault();
+
+      const match = matches.find(item => String(item.match_id) === String(form.dataset.matchId));
+      const homeScore = form.elements.home_score.value.trim();
+      const awayScore = form.elements.away_score.value.trim();
+      const button = form.querySelector('.prediction-save');
+
+      if (!match || !match.can_edit) {
+        toast('This match is already locked.', true);
+        return;
+      }
+      if (!/^\d{1,2}$/.test(homeScore) || !/^\d{1,2}$/.test(awayScore)) {
+        toast('Enter both scores using numbers from 0 to 99.', true);
+        return;
+      }
+
+      button.disabled = true;
+      button.textContent = 'Saving…';
+      try {
+        const result = await api({
+          action: 'serieASubmitPrediction',
+          player_id: session.player_id,
+          session_token: session.session_token,
+          match_id: match.match_id,
+          pred_home_score: homeScore,
+          pred_away_score: awayScore
+        });
+        if (!result.success) throw new Error(result.error || 'Could not save prediction');
+
+        match.user_prediction = {
+          pred_home_score: Number(homeScore),
+          pred_away_score: Number(awayScore),
+          points: null
+        };
+        button.classList.add('saved');
+        button.textContent = 'Saved ✓';
+        toast(`${match.home_team} ${homeScore}–${awayScore} ${match.away_team} saved.`);
+        setTimeout(() => {
+          if (!button.isConnected) return;
+          button.classList.remove('saved');
+          button.textContent = 'Update prediction';
+          button.disabled = false;
+        }, 1800);
+      } catch (err) {
+        button.disabled = false;
+        button.textContent = match.user_prediction ? 'Update prediction' : 'Save prediction';
+        toast(err.message || 'Could not save prediction.', true);
+      }
     }
 
     function formatKickoff(value) {
@@ -544,10 +654,6 @@
         weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
         timeZone: 'Europe/Rome'
       }).format(date);
-    }
-
-    function initials(name) {
-      return escapeHtml(String(name || '').split(/\s+/).slice(0, 2).map(word => word[0]).join('').toUpperCase());
     }
 
     function escapeHtml(value) {
