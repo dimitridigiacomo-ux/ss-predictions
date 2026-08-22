@@ -64,7 +64,10 @@ function handleRequest(params) {
         result = { success: true, message: generateReminderMessage() };
         break;
       default:
-        result = { success: false, error: 'Unknown action: ' + action };
+        const serieAResult = (typeof handleSerieARequest_ === 'function')
+          ? handleSerieARequest_(params)
+          : null;
+        result = serieAResult || { success: false, error: 'Unknown action: ' + action };
     }
   } catch (err) {
     result = { success: false, error: err.message };

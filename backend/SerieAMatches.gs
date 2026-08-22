@@ -206,8 +206,15 @@ function syncSerieAFixtures() {
     }
 
     CacheService.getScriptCache().remove('vals_' + SERIE_A_CONFIG.sheetName);
-    auditLog('serie_a_fixtures_synced', null, null, null,
-      'added=' + added + ', updated=' + updated, 'trigger');
+    if (typeof auditSerieA_ === 'function') {
+      auditSerieA_('serie_a_fixtures_synced', null, null, null,
+        'added=' + added + ', updated=' + updated, 'trigger');
+    }
+
+    let leaderboardResult = null;
+    if (typeof recalculateSerieALeaderboard_ === 'function') {
+      leaderboardResult = recalculateSerieALeaderboard_();
+    }
 
     return {
       success: true,
@@ -217,6 +224,7 @@ function syncSerieAFixtures() {
       updated,
       total_rows: rows.length,
       golden_matches_selected: goldenSelections,
+      leaderboard: leaderboardResult,
       synced_at: now.toISOString()
     };
   } finally {

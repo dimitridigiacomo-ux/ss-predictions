@@ -106,7 +106,7 @@ function migrateSerieAPlayers_(spreadsheet, targetSheet) {
       salt,
       hashSerieAPin_(player.pin, salt),
       player.email || '',
-      player.active === true,
+      truthy_(player.active),
       player.created_at || now
     ]);
     existingIds.add(playerId);
@@ -278,4 +278,3 @@ function auditSerieA_(action, playerId, matchId, oldValue, newValue, source) {
     // Auditing must not break login or setup.
   }
 }
-

@@ -102,12 +102,18 @@ function calculateSerieAPoints_(prediction, match, suppliedSettings) {
   if (status === 'void' || status === 'cancelled') return 0;
 
   const settings = suppliedSettings || getSerieASettings_();
+  const rawScores = [
+    prediction.pred_home_score,
+    prediction.pred_away_score,
+    match.home_score,
+    match.away_score
+  ];
+  if (rawScores.some(score => !serieAValidScoreValue_(score))) return 0;
+
   const predictedHome = Number(prediction.pred_home_score);
   const predictedAway = Number(prediction.pred_away_score);
   const actualHome = Number(match.home_score);
   const actualAway = Number(match.away_score);
-  const scores = [predictedHome, predictedAway, actualHome, actualAway];
-  if (scores.some(score => !Number.isInteger(score) || score < 0)) return 0;
 
   let points = 0;
   if (predictedHome === actualHome && predictedAway === actualAway) {
@@ -145,4 +151,10 @@ function serieAOutcome_(home, away) {
 function numberSetting_(value, fallback) {
   const number = Number(value);
   return Number.isFinite(number) ? number : fallback;
+}
+
+function serieAValidScoreValue_(value) {
+  if (value === '' || value === null || value === undefined) return false;
+  const number = Number(value);
+  return Number.isInteger(number) && number >= 0 && number <= 99;
 }

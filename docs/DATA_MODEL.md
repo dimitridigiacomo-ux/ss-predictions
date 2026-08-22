@@ -169,3 +169,15 @@ most_wrong_prediction | updated_at
 ```text
 timestamp | action | player_id | match_id | old_value | new_value | source
 ```
+
+## Serie A API actions
+
+| Action | Authentication | Purpose |
+|---|---|---|
+| `serieALogin` | Name + PIN | Returns a six-hour session token |
+| `serieAGetMatches` | Player ID + session | Returns fixtures and predictions |
+| `serieASubmitPrediction` | Player ID + session | Creates or updates a score prediction |
+| `serieAGetLeaderboard` | Player ID + session | Returns the Serie A leaderboard |
+
+Leaderboard recalculation is deliberately internal and cannot be invoked as a
+public web action.
