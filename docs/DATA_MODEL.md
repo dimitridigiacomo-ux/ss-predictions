@@ -108,7 +108,7 @@ match_id | provider | provider_match_id | competition_id | season_id |
 round | stage | matchday | home_team_id | home_team | away_team_id |
 away_team | kickoff_datetime | status | home_score | away_score |
 provider_last_updated | last_synced_at | manual_kickoff_override | notes |
-is_golden | points_multiplier | golden_selected_at
+is_golden | points_multiplier | golden_selected_at | golden_week_key
 ```
 
 `provider_match_id` is the upsert key. Setting `manual_kickoff_override` to TRUE
@@ -126,12 +126,12 @@ prevents the synchroniser from replacing a manually corrected kickoff time.
 
 ### Golden Match policy
 
-- One match is selected randomly per Serie A matchday.
-- Selection happens when that matchday enters the next seven-day window.
+- One match is selected randomly per Europe/Rome calendar week.
+- Selection happens when that week enters the next seven-day window.
 - The selection is persisted in `Matches_SerieA` and never rerolled.
 - All points from that match are multiplied by three.
 - A void Golden Match may be replaced only by an upcoming match in the same
-  matchday.
+  calendar week.
 - The frontend must render Golden Match cards with a distinct visual treatment.
 
 ## Serie A player and game sheets
