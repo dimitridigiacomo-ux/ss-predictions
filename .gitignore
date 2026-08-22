@@ -1,0 +1,16 @@
+# Local settings and private exports
+.env
+.env.*
+!.env.example
+*.private.*
+private/
+
+# OS/editor files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Test output
+coverage/
+test-results/
