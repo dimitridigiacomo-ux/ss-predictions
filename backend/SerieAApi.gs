@@ -414,7 +414,7 @@ function verifySerieABackendSetup() {
     players: 0,
     predictions: 0,
     duplicate_provider_match_ids: 0,
-    weeks_with_multiple_golden: [],
+    matchdays_with_multiple_golden: [],
     plaintext_pin_column_present: false,
     lock_minutes_before_kickoff: null,
     golden_multiplier: null
@@ -431,14 +431,15 @@ function verifySerieABackendSetup() {
     result.duplicate_provider_match_ids =
       providerIds.length - new Set(providerIds).size;
 
-    const goldenByWeek = {};
+    const goldenByMatchday = {};
     matches.filter(match => truthy_(match.is_golden)).forEach(match => {
-      const key = match.golden_week_key ||
-        serieAGoldenWeekKey_(match.kickoff_datetime);
-      goldenByWeek[key] = (goldenByWeek[key] || 0) + 1;
+      const key = Number(match.matchday);
+      if (!Number.isFinite(key)) return;
+      goldenByMatchday[key] = (goldenByMatchday[key] || 0) + 1;
     });
-    result.weeks_with_multiple_golden = Object.keys(goldenByWeek)
-      .filter(week => goldenByWeek[week] > 1);
+    result.matchdays_with_multiple_golden = Object.keys(goldenByMatchday)
+      .filter(matchday => goldenByMatchday[matchday] > 1)
+      .map(Number);
   }
 
   if (!missingSheets.includes(SERIE_A_PLAYER_SHEETS.players)) {
@@ -466,7 +467,7 @@ function verifySerieABackendSetup() {
     result.matches > 0 &&
     result.players > 0 &&
     result.duplicate_provider_match_ids === 0 &&
-    result.weeks_with_multiple_golden.length === 0 &&
+    result.matchdays_with_multiple_golden.length === 0 &&
     result.plaintext_pin_column_present === false &&
     result.lock_minutes_before_kickoff === 0 &&
     result.golden_multiplier === 3;

@@ -42,7 +42,7 @@ const SERIE_A_MATCH_HEADERS = Object.freeze(
     'is_golden',
     'points_multiplier',
     'golden_selected_at',
-    'golden_week_key'
+    'golden_matchday_key'
   ])
 );
 
@@ -372,52 +372,57 @@ function shouldScoreSerieAMatch_(match) {
 }
 
 /**
- * Selects one persisted Golden Match for each Europe/Rome calendar week
- * entering the next seven-day window. Existing valid selections never change.
- * This remains one per week even during midweek Serie A rounds.
+ * Selects exactly one persisted Golden Match per Serie A matchday when that
+ * matchday enters the next seven-day window. If older weekly logic left more
+ * than one Golden in a matchday, the earliest persisted selection is kept and
+ * every duplicate is reset before a new selection can be made.
  */
 function assignUpcomingGoldenMatches_(rows, col, now) {
-  const byWeek = {};
+  const byMatchday = {};
   rows.forEach((row, index) => {
-    const weekKey = serieAGoldenWeekKey_(row[col.kickoff_datetime]);
-    if (!weekKey) return;
-    if (!byWeek[weekKey]) byWeek[weekKey] = [];
-    byWeek[weekKey].push(index);
+    const matchday = Number(row[col.matchday]);
+    if (!Number.isFinite(matchday) || matchday < 1) return;
+    if (!byMatchday[matchday]) byMatchday[matchday] = [];
+    byMatchday[matchday].push(index);
   });
 
   const selected = [];
   const selectionCutoff = now.getTime() +
     SERIE_A_CONFIG.goldenLookaheadDays * 24 * 60 * 60 * 1000;
-  const selectedByAssignedWeek = {};
-  const selectedByActualWeek = {};
+  const selectedByMatchday = {};
+  const existingByMatchday = {};
 
   rows.forEach((row, index) => {
     if (!truthy_(row[col.is_golden])) return;
     const status = (row[col.status] || '').toString().toLowerCase();
-    if (status === 'void') {
-      setField_(row, col, 'is_golden', false);
-      setField_(row, col, 'points_multiplier', 1);
-      setField_(row, col, 'golden_selected_at', '');
-      setField_(row, col, 'golden_week_key', '');
+    const matchday = Number(row[col.matchday]);
+    if (status === 'void' || !Number.isFinite(matchday) || matchday < 1) {
+      clearSerieAGoldenMatch_(row, col);
       return;
     }
-
-    const assignedWeek = row[col.golden_week_key] ||
-      serieAGoldenWeekKey_(row[col.kickoff_datetime]);
-    const actualWeek = serieAGoldenWeekKey_(row[col.kickoff_datetime]);
-    setField_(row, col, 'golden_week_key', assignedWeek);
-    if (selectedByAssignedWeek[assignedWeek] !== undefined) {
-      throw new Error('More than one Golden Match is assigned to week ' + assignedWeek);
-    }
-    selectedByAssignedWeek[assignedWeek] = index;
-    if (actualWeek) selectedByActualWeek[actualWeek] = index;
+    if (!existingByMatchday[matchday]) existingByMatchday[matchday] = [];
+    existingByMatchday[matchday].push(index);
   });
 
-  Object.keys(byWeek).forEach(weekKey => {
-    if (selectedByAssignedWeek[weekKey] !== undefined ||
-        selectedByActualWeek[weekKey] !== undefined) return;
+  Object.keys(existingByMatchday).forEach(matchdayKey => {
+    const indexes = existingByMatchday[matchdayKey].sort((left, right) => {
+      const leftSelected = dateValue_(rows[left][col.golden_selected_at]);
+      const rightSelected = dateValue_(rows[right][col.golden_selected_at]);
+      if (leftSelected !== rightSelected) return leftSelected - rightSelected;
+      return dateValue_(rows[left][col.kickoff_datetime]) -
+        dateValue_(rows[right][col.kickoff_datetime]);
+    });
+    const keptIndex = indexes[0];
+    const matchday = Number(matchdayKey);
+    selectedByMatchday[matchday] = keptIndex;
+    setField_(rows[keptIndex], col, 'golden_matchday_key', 'MD-' + matchday);
+    indexes.slice(1).forEach(index => clearSerieAGoldenMatch_(rows[index], col));
+  });
 
-    const indexes = byWeek[weekKey];
+  Object.keys(byMatchday).forEach(matchdayKey => {
+    const matchday = Number(matchdayKey);
+    if (selectedByMatchday[matchday] !== undefined) return;
+    const indexes = byMatchday[matchday];
 
     const candidates = indexes.filter(index => {
       const row = rows[index];
@@ -437,13 +442,11 @@ function assignUpcomingGoldenMatches_(rows, col, now) {
     setField_(chosenRow, col, 'is_golden', true);
     setField_(chosenRow, col, 'points_multiplier', SERIE_A_CONFIG.goldenMultiplier);
     setField_(chosenRow, col, 'golden_selected_at', now);
-    setField_(chosenRow, col, 'golden_week_key', weekKey);
-    selectedByAssignedWeek[weekKey] = chosenIndex;
-    selectedByActualWeek[weekKey] = chosenIndex;
+    setField_(chosenRow, col, 'golden_matchday_key', 'MD-' + matchday);
+    selectedByMatchday[matchday] = chosenIndex;
 
     selected.push({
-      week: weekKey,
-      matchday: Number(chosenRow[col.matchday]),
+      matchday,
       match_id: chosenRow[col.match_id],
       home_team: chosenRow[col.home_team],
       away_team: chosenRow[col.away_team],
@@ -454,11 +457,11 @@ function assignUpcomingGoldenMatches_(rows, col, now) {
   return selected;
 }
 
-function serieAGoldenWeekKey_(value) {
-  if (!value) return '';
-  const date = value instanceof Date ? value : new Date(value);
-  if (isNaN(date.getTime())) return '';
-  return Utilities.formatDate(date, 'Europe/Rome', "YYYY-'W'ww");
+function clearSerieAGoldenMatch_(row, col) {
+  setField_(row, col, 'is_golden', false);
+  setField_(row, col, 'points_multiplier', 1);
+  setField_(row, col, 'golden_selected_at', '');
+  setField_(row, col, 'golden_matchday_key', '');
 }
 
 function serieAScore_(match, side) {
