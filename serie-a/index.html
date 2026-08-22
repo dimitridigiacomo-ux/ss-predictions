@@ -6,6 +6,7 @@
   <meta name="theme-color" content="#071428">
   <meta name="description" content="Sportsbook & Steaks Serie A predictions for the 2026/27 season.">
   <title>S&amp;S Serie A Predictions</title>
+  <link rel="icon" type="image/png" href="./serie-a-logo.png">
   <style>
     :root {
       --ink: #071428;
@@ -53,13 +54,17 @@
       width: 72px;
       height: 72px;
       margin: 0 auto 16px;
-      border: 1px solid rgba(243,198,78,.42);
+      border: 1px solid rgba(45,203,244,.42);
       border-radius: 24px;
-      background: linear-gradient(145deg, rgba(243,198,78,.20), rgba(39,194,129,.12));
-      display: grid;
-      place-items: center;
+      background: #fff;
       box-shadow: 0 16px 42px rgba(0,0,0,.28);
-      font-size: 34px;
+      overflow: hidden;
+    }
+    .brand-mark img {
+      width: 90px;
+      height: auto;
+      transform: translate(-10px, -8px);
+      display: block;
     }
     .eyebrow {
       color: var(--green);
@@ -146,10 +151,15 @@
       width: 40px;
       height: 40px;
       border-radius: 13px;
-      background: linear-gradient(145deg, rgba(243,198,78,.22), rgba(39,194,129,.16));
-      display: grid;
-      place-items: center;
-      font-size: 20px;
+      background: #fff;
+      overflow: hidden;
+      flex: 0 0 auto;
+    }
+    .mini-mark img {
+      width: 50px;
+      height: auto;
+      transform: translate(-5px, -4px);
+      display: block;
     }
     .mini-brand strong { display: block; font-size: 14px; }
     .mini-brand span { display: block; color: var(--muted); font-size: 11px; }
@@ -319,7 +329,7 @@
   <section class="login-screen" id="login-screen">
     <div class="login-shell">
       <div class="brand">
-        <div class="brand-mark">⚽</div>
+        <div class="brand-mark"><img src="./serie-a-logo.png" alt="Serie A"></div>
         <div class="eyebrow">2026 / 27 Season</div>
         <h1>Serie A<br>Predictions</h1>
         <p>Sportsbook &amp; Steaks · Every match. Every point.</p>
@@ -344,7 +354,7 @@
     <header class="topbar">
       <div class="topbar-inner">
         <div class="mini-brand">
-          <div class="mini-mark">⚽</div>
+          <div class="mini-mark"><img src="./serie-a-logo.png" alt=""></div>
           <div><strong>S&amp;S Serie A</strong><span>Predictions · 2026/27</span></div>
         </div>
         <button class="user-btn" id="user-button" type="button"></button>
