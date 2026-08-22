@@ -5,6 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#071428">
   <meta name="description" content="Sportsbook & Steaks Serie A predictions for the 2026/27 season.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="S&amp;S Serie A Predictions">
+  <meta property="og:description" content="2026/27 · One matchday. One Golden. Triple points.">
+  <meta property="og:url" content="https://dimitridigiacomo-ux.github.io/ss-predictions/serie-a/">
+  <meta property="og:image" content="https://dimitridigiacomo-ux.github.io/ss-predictions/serie-a/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="S&amp;S Serie A Predictions">
+  <meta name="twitter:description" content="2026/27 · One matchday. One Golden. Triple points.">
+  <meta name="twitter:image" content="https://dimitridigiacomo-ux.github.io/ss-predictions/serie-a/og.png">
   <title>S&amp;S Serie A Predictions</title>
   <link rel="icon" type="image/png" href="./serie-a-logo.png">
   <style>
@@ -342,6 +351,35 @@
       font-weight: 950;
     }
     .fixture-note { margin: 12px 0 0; color: var(--muted); font-size: 11px; text-align: center; }
+    .revealed-predictions {
+      margin-top: 14px;
+      border-top: 1px solid var(--line);
+      padding-top: 12px;
+    }
+    .revealed-predictions summary {
+      cursor: pointer;
+      color: #c8d6e6;
+      font-size: 11px;
+      font-weight: 850;
+      list-style-position: inside;
+    }
+    .prediction-list { margin-top: 9px; display: grid; gap: 6px; }
+    .player-prediction {
+      min-height: 38px;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: rgba(255,255,255,.045);
+      display: grid;
+      grid-template-columns: minmax(0,1fr) auto auto;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 11px;
+    }
+    .player-prediction.me { background: rgba(39,194,129,.11); color: #c8f5df; }
+    .player-prediction strong { overflow: hidden; color: var(--white); text-overflow: ellipsis; white-space: nowrap; }
+    .player-prediction b { color: var(--white); font-size: 13px; }
+    .prediction-points { min-width: 34px; color: var(--gold); text-align: right; font-weight: 850; }
 
     .standings-card { overflow: hidden; }
     .standing-row {
@@ -410,6 +448,21 @@
       font-size: 11px;
       text-align: center;
     }
+    .retry-button {
+      margin-top: 13px;
+      min-height: 40px;
+      border: 1px solid rgba(39,194,129,.40);
+      border-radius: 12px;
+      padding: 0 18px;
+      background: rgba(39,194,129,.12);
+      color: var(--white);
+      font: inherit;
+      font-size: 11px;
+      font-weight: 900;
+      letter-spacing: .05em;
+      text-transform: uppercase;
+    }
+    .loading-hint { margin: 7px 0 0; color: #6f86a2; font-size: 10px; }
 
     .toast {
       position: fixed;
@@ -493,7 +546,6 @@
         <section class="stack" id="upcoming-list">
           <div class="card loading"><div class="spinner"></div>Loading Serie A…</div>
         </section>
-        <div class="preview-note">Safe preview · the World Cup site is unchanged</div>
       </section>
 
       <section class="view hidden" id="view-predict">
@@ -541,6 +593,7 @@
       document.getElementById('login-form').addEventListener('submit', login);
       document.getElementById('user-button').addEventListener('click', logout);
       document.getElementById('main-content').addEventListener('submit', savePrediction);
+      document.getElementById('main-content').addEventListener('click', handleContentClick);
       document.querySelector('.bottom-nav').addEventListener('click', changeView);
       document.getElementById('predict-day-select').addEventListener('change', event => {
         selectedMatchday = Number(event.target.value);
@@ -560,14 +613,24 @@
     });
 
     async function api(payload) {
-      const response = await fetch(API_URL, {
-        method: 'POST',
-        redirect: 'follow',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(payload)
-      });
-      if (!response.ok) throw new Error('Backend returned HTTP ' + response.status);
-      return response.json();
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 25000);
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          redirect: 'follow',
+          signal: controller.signal,
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        });
+        if (!response.ok) throw new Error('Backend returned HTTP ' + response.status);
+        return response.json();
+      } catch (err) {
+        if (err.name === 'AbortError') throw new Error('Google took too long to respond. Please retry.');
+        throw err;
+      } finally {
+        clearTimeout(timeout);
+      }
     }
 
     async function login(event) {
@@ -579,6 +642,9 @@
       error.textContent = '';
       button.disabled = true;
       button.textContent = 'SIGNING IN…';
+      const slowLoginMessage = setTimeout(() => {
+        button.textContent = 'WAKING UP GOOGLE…';
+      }, 4500);
 
       try {
         const result = await api({ action: 'serieALogin', name, pin });
@@ -594,6 +660,7 @@
       } catch (err) {
         error.textContent = err.message || 'Could not connect. Please try again.';
       } finally {
+        clearTimeout(slowLoginMessage);
         button.disabled = false;
         button.textContent = 'ENTER THE LEAGUE';
       }
@@ -621,7 +688,10 @@
 
     async function loadDashboard() {
       const list = document.getElementById('upcoming-list');
-      list.innerHTML = '<div class="card loading"><div class="spinner"></div>Loading Serie A…</div>';
+      const loading = '<div class="card loading"><div class="spinner"></div>Loading Serie A…<p class="loading-hint">The first connection may take a few seconds.</p></div>';
+      list.innerHTML = loading;
+      document.getElementById('predict-list').innerHTML = loading;
+      document.getElementById('matches-list').innerHTML = loading;
       try {
         const auth = {
           player_id: session.player_id,
@@ -638,9 +708,10 @@
         await leaderboardPromise;
       } catch (err) {
         if (/session|authentication/i.test(err.message)) return expireSession();
-        list.innerHTML = '<div class="card empty">Could not load the fixtures. Refresh to retry.</div>';
-        document.getElementById('predict-list').innerHTML = '<div class="card empty">Could not load the fixtures.</div>';
-        document.getElementById('matches-list').innerHTML = '<div class="card empty">Could not load the fixtures.</div>';
+        const errorCard = loadErrorCard('Could not load the fixtures.');
+        list.innerHTML = errorCard;
+        document.getElementById('predict-list').innerHTML = errorCard;
+        document.getElementById('matches-list').innerHTML = errorCard;
         toast(err.message, true);
       }
     }
@@ -656,8 +727,20 @@
         renderStandings();
       } catch (err) {
         if (/session|authentication/i.test(err.message)) return expireSession();
-        document.getElementById('standings-list').innerHTML = '<div class="empty">Could not load the standings.</div>';
+        document.getElementById('standings-list').innerHTML = loadErrorCard('Could not load the standings.', false);
       }
+    }
+
+    function handleContentClick(event) {
+      const retry = event.target.closest('[data-retry-load]');
+      if (!retry || !session) return;
+      retry.disabled = true;
+      retry.textContent = 'Retrying…';
+      loadDashboard();
+    }
+
+    function loadErrorCard(message, withCard = true) {
+      return `<div class="${withCard ? 'card ' : ''}empty">${escapeHtml(message)}<br><button class="retry-button" type="button" data-retry-load>Retry</button></div>`;
     }
 
     function expireSession() {
@@ -794,6 +877,7 @@
       const note = prediction
         ? `Your prediction: ${escapeHtml(prediction.pred_home_score)}–${escapeHtml(prediction.pred_away_score)}`
         : (match.can_edit ? 'Prediction still open' : 'No prediction submitted');
+      const revealed = revealedPredictions(match);
       return `
         <article class="card fixture-card ${golden ? 'golden' : ''}">
           <div class="match-meta">
@@ -806,7 +890,29 @@
             <span>${escapeHtml(match.away_team)}</span>
           </div>
           <p class="fixture-note">${note}</p>
+          ${revealed}
         </article>`;
+    }
+
+    function revealedPredictions(match) {
+      if (!match.show_all_predictions) return '';
+      const predictions = Array.isArray(match.all_predictions) ? match.all_predictions : [];
+      if (!predictions.length) {
+        return '<div class="revealed-predictions"><p class="fixture-note">Predictions unlocked · none submitted</p></div>';
+      }
+      const rows = predictions
+        .slice()
+        .sort((left, right) => Number(Boolean(right.is_me)) - Number(Boolean(left.is_me)))
+        .map(prediction => {
+          const hasPoints = prediction.points !== '' && prediction.points !== null && prediction.points !== undefined;
+          return `
+            <div class="player-prediction ${prediction.is_me ? 'me' : ''}">
+              <strong>${escapeHtml(prediction.player_name)}${prediction.is_me ? ' · You' : ''}</strong>
+              <b>${escapeHtml(prediction.pred_home_score)}–${escapeHtml(prediction.pred_away_score)}</b>
+              <span class="prediction-points">${hasPoints ? escapeHtml(prediction.points) + ' pts' : ''}</span>
+            </div>`;
+        }).join('');
+      return `<details class="revealed-predictions"><summary>Players’ predictions (${predictions.length})</summary><div class="prediction-list">${rows}</div></details>`;
     }
 
     function renderStandings() {
