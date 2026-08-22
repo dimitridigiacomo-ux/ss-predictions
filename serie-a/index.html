@@ -292,6 +292,77 @@
     }
     .versus { color: var(--muted); font-size: 12px; font-weight: 900; }
 
+    .page-intro { margin: 4px 2px 20px; }
+    .page-intro h2 { margin: 6px 0 5px; font-size: 28px; letter-spacing: -.035em; }
+    .page-intro p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+    .matchday-picker {
+      margin-bottom: 14px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(255,255,255,.04);
+      display: grid;
+      grid-template-columns: 44px 1fr 44px;
+      gap: 8px;
+    }
+    .day-button, .day-select {
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      background: #102744;
+      color: var(--white);
+      font: inherit;
+      font-size: 13px;
+      font-weight: 850;
+    }
+    .day-button:disabled { opacity: .35; }
+    .day-select { width: 100%; padding: 0 12px; text-align: center; }
+
+    .fixture-card { padding: 17px 18px; }
+    .fixture-card.golden { border-color: rgba(243,198,78,.58); }
+    .fixture-row {
+      margin-top: 15px;
+      display: grid;
+      grid-template-columns: minmax(0,1fr) auto minmax(0,1fr);
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+      font-weight: 850;
+    }
+    .fixture-row span:first-child { text-align: right; }
+    .fixture-row span:last-child { text-align: left; }
+    .score-pill {
+      min-width: 64px;
+      padding: 8px 10px;
+      border-radius: 11px;
+      background: rgba(255,255,255,.08);
+      color: var(--white);
+      text-align: center;
+      font-size: 14px;
+      font-weight: 950;
+    }
+    .fixture-note { margin: 12px 0 0; color: var(--muted); font-size: 11px; text-align: center; }
+
+    .standings-card { overflow: hidden; }
+    .standing-row {
+      min-height: 64px;
+      padding: 11px 16px;
+      border-bottom: 1px solid var(--line);
+      display: grid;
+      grid-template-columns: 36px minmax(0,1fr) auto;
+      align-items: center;
+      gap: 12px;
+    }
+    .standing-row:last-child { border-bottom: 0; }
+    .standing-row.me { background: rgba(39,194,129,.10); }
+    .standing-rank { color: var(--muted); font-size: 13px; font-weight: 900; }
+    .standing-name { min-width: 0; }
+    .standing-name strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; }
+    .standing-name span { color: var(--muted); font-size: 10px; }
+    .standing-points { text-align: right; }
+    .standing-points b { display: block; font-size: 19px; }
+    .standing-points span { color: var(--muted); font-size: 9px; font-weight: 800; text-transform: uppercase; }
+
     .empty, .loading { padding: 28px 20px; text-align: center; color: var(--muted); }
     .spinner {
       width: 28px;
@@ -403,33 +474,55 @@
       </div>
     </header>
 
-    <main>
-      <section class="hero">
-        <div class="hero-copy">
-          <div class="eyebrow">The season starts here</div>
-          <h2 id="welcome-title">Welcome back</h2>
-          <p>Make every score count. One match each week goes Golden and pays triple points.</p>
-          <div class="stat-grid">
-            <div class="stat"><b id="stat-points">0</b><span>Points</span></div>
-            <div class="stat"><b id="stat-rank">—</b><span>Rank</span></div>
-            <div class="stat"><b id="stat-open">—</b><span>Open</span></div>
+    <main id="main-content">
+      <section class="view" id="view-home">
+        <section class="hero">
+          <div class="hero-copy">
+            <div class="eyebrow">The season starts here</div>
+            <h2 id="welcome-title">Welcome back</h2>
+            <p>Make every score count. One match each week goes Golden and pays triple points.</p>
+            <div class="stat-grid">
+              <div class="stat"><b id="stat-points">0</b><span>Points</span></div>
+              <div class="stat"><b id="stat-rank">—</b><span>Rank</span></div>
+              <div class="stat"><b id="stat-open">—</b><span>To predict</span></div>
+            </div>
           </div>
-        </div>
+        </section>
+
+        <div class="section-head"><div><h3>Coming up</h3><span>Your next fixtures</span></div></div>
+        <section class="stack" id="upcoming-list">
+          <div class="card loading"><div class="spinner"></div>Loading Serie A…</div>
+        </section>
+        <div class="preview-note">Safe preview · the World Cup site is unchanged</div>
       </section>
 
-      <div class="section-head"><div><h3>Coming up</h3><span>Your next fixtures</span></div></div>
-      <section class="stack" id="upcoming-list">
-        <div class="card loading"><div class="spinner"></div>Loading Serie A…</div>
+      <section class="view hidden" id="view-predict">
+        <div class="page-intro"><div class="eyebrow">Your predictions</div><h2>Predict the matchday</h2><p>Enter both scores and save each match before kickoff.</p></div>
+        <div class="matchday-picker">
+          <button class="day-button" id="predict-day-prev" type="button" aria-label="Previous matchday">‹</button>
+          <select class="day-select" id="predict-day-select" aria-label="Choose matchday"></select>
+          <button class="day-button" id="predict-day-next" type="button" aria-label="Next matchday">›</button>
+        </div>
+        <section class="stack" id="predict-list"><div class="card loading"><div class="spinner"></div>Loading matches…</div></section>
       </section>
-      <div class="preview-note">Safe preview · the World Cup site is unchanged</div>
+
+      <section class="view hidden" id="view-matches">
+        <div class="page-intro"><div class="eyebrow">Fixtures &amp; results</div><h2 id="matches-title">Matchday</h2><p>Kickoff times, results and your saved predictions.</p></div>
+        <section class="stack" id="matches-list"><div class="card loading"><div class="spinner"></div>Loading fixtures…</div></section>
+      </section>
+
+      <section class="view hidden" id="view-standings">
+        <div class="page-intro"><div class="eyebrow">The league table</div><h2>Standings</h2><p>Live ranking for all Sportsbook &amp; Steaks players.</p></div>
+        <section class="card standings-card" id="standings-list"><div class="loading"><div class="spinner"></div>Loading standings…</div></section>
+      </section>
     </main>
 
     <nav class="bottom-nav" aria-label="Main navigation">
       <div class="nav-inner">
-        <button class="nav-item active" type="button"><span>⌂</span>Home</button>
-        <button class="nav-item" type="button"><span>✎</span>Predict</button>
-        <button class="nav-item" type="button"><span>▦</span>Matches</button>
-        <button class="nav-item" type="button"><span>♛</span>Standings</button>
+        <button class="nav-item active" data-view="home" type="button" aria-current="page"><span>⌂</span>Home</button>
+        <button class="nav-item" data-view="predict" type="button"><span>✎</span>Predict</button>
+        <button class="nav-item" data-view="matches" type="button"><span>▦</span>Matches</button>
+        <button class="nav-item" data-view="standings" type="button"><span>♛</span>Standings</button>
       </div>
     </nav>
   </div>
@@ -442,11 +535,19 @@
     let session = null;
     let matches = [];
     let leaderboard = [];
+    let selectedMatchday = null;
 
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('login-form').addEventListener('submit', login);
       document.getElementById('user-button').addEventListener('click', logout);
-      document.getElementById('upcoming-list').addEventListener('submit', savePrediction);
+      document.getElementById('main-content').addEventListener('submit', savePrediction);
+      document.querySelector('.bottom-nav').addEventListener('click', changeView);
+      document.getElementById('predict-day-select').addEventListener('change', event => {
+        selectedMatchday = Number(event.target.value);
+        renderMatchdayViews();
+      });
+      document.getElementById('predict-day-prev').addEventListener('click', () => stepMatchday(-1));
+      document.getElementById('predict-day-next').addEventListener('click', () => stepMatchday(1));
       const saved = localStorage.getItem(SESSION_KEY);
       if (!saved) return;
       try {
@@ -503,6 +604,7 @@
       document.getElementById('app').classList.remove('hidden');
       document.getElementById('user-button').textContent = session.player_name + ' · Log out';
       document.getElementById('welcome-title').textContent = 'Ciao, ' + session.player_name;
+      showView('home', false);
     }
 
     function logout() {
@@ -511,6 +613,7 @@
       session = null;
       matches = [];
       leaderboard = [];
+      selectedMatchday = null;
       document.getElementById('app').classList.add('hidden');
       document.getElementById('login-screen').classList.remove('hidden');
       document.getElementById('login-pin').value = '';
@@ -524,31 +627,116 @@
           player_id: session.player_id,
           session_token: session.session_token
         };
+        const leaderboardPromise = loadLeaderboard(auth);
         const matchResult = await api({ action: 'serieAGetMatches', ...auth });
         if (!matchResult.success) throw new Error(matchResult.error || 'Could not load matches');
         matches = matchResult.matches || [];
+        selectedMatchday = defaultMatchday();
         renderUpcoming();
-        document.getElementById('stat-open').textContent = matches.filter(match => match.can_edit).length;
-
-        const leaderboardResult = await api({ action: 'serieAGetLeaderboard', ...auth });
-        if (leaderboardResult.success) {
-          leaderboard = leaderboardResult.leaderboard || [];
-          const mine = leaderboard.find(row => String(row.player_id) === String(session.player_id));
-          document.getElementById('stat-points').textContent = mine ? mine.total_points : 0;
-          document.getElementById('stat-rank').textContent = mine ? '#' + mine.rank : '—';
-        }
+        prepareMatchdayPicker();
+        renderMatchdayViews();
+        await leaderboardPromise;
       } catch (err) {
-        if (/session|authentication/i.test(err.message)) {
-          localStorage.removeItem(SESSION_KEY);
-          session = null;
-          document.getElementById('app').classList.add('hidden');
-          document.getElementById('login-screen').classList.remove('hidden');
-          document.getElementById('login-error').textContent = 'Session expired. Sign in again.';
-          return;
-        }
+        if (/session|authentication/i.test(err.message)) return expireSession();
         list.innerHTML = '<div class="card empty">Could not load the fixtures. Refresh to retry.</div>';
+        document.getElementById('predict-list').innerHTML = '<div class="card empty">Could not load the fixtures.</div>';
+        document.getElementById('matches-list').innerHTML = '<div class="card empty">Could not load the fixtures.</div>';
         toast(err.message, true);
       }
+    }
+
+    async function loadLeaderboard(auth) {
+      try {
+        const result = await api({ action: 'serieAGetLeaderboard', ...auth });
+        if (!result.success) throw new Error(result.error || 'Could not load standings');
+        leaderboard = result.leaderboard || [];
+        const mine = leaderboard.find(row => String(row.player_id) === String(session.player_id));
+        document.getElementById('stat-points').textContent = mine ? mine.total_points : 0;
+        document.getElementById('stat-rank').textContent = mine ? '#' + mine.rank : '—';
+        renderStandings();
+      } catch (err) {
+        if (/session|authentication/i.test(err.message)) return expireSession();
+        document.getElementById('standings-list').innerHTML = '<div class="empty">Could not load the standings.</div>';
+      }
+    }
+
+    function expireSession() {
+      localStorage.removeItem(SESSION_KEY);
+      session = null;
+      document.getElementById('app').classList.add('hidden');
+      document.getElementById('login-screen').classList.remove('hidden');
+      document.getElementById('login-error').textContent = 'Session expired. Sign in again.';
+    }
+
+    function changeView(event) {
+      const button = event.target.closest('[data-view]');
+      if (!button) return;
+      showView(button.dataset.view);
+    }
+
+    function showView(name, scroll = true) {
+      if (matches.length && name === 'home') renderUpcoming();
+      if (matches.length && (name === 'predict' || name === 'matches')) renderMatchdayViews();
+      if (name === 'standings') renderStandings();
+      document.querySelectorAll('.view').forEach(view => {
+        view.classList.toggle('hidden', view.id !== 'view-' + name);
+      });
+      document.querySelectorAll('[data-view]').forEach(button => {
+        const active = button.dataset.view === name;
+        button.classList.toggle('active', active);
+        if (active) button.setAttribute('aria-current', 'page');
+        else button.removeAttribute('aria-current');
+      });
+      if (scroll) window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function matchdays() {
+      return [...new Set(matches.map(match => Number(match.matchday)).filter(Number.isFinite))]
+        .sort((a, b) => a - b);
+    }
+
+    function defaultMatchday() {
+      const now = Date.now();
+      const next = matches
+        .filter(match => match.kickoff_datetime && new Date(match.kickoff_datetime).getTime() > now)
+        .sort((a, b) => new Date(a.kickoff_datetime) - new Date(b.kickoff_datetime))[0];
+      const days = matchdays();
+      return next ? Number(next.matchday) : (days[days.length - 1] || null);
+    }
+
+    function prepareMatchdayPicker() {
+      const select = document.getElementById('predict-day-select');
+      select.innerHTML = matchdays().map(day => `<option value="${day}">Matchday ${day}</option>`).join('');
+    }
+
+    function stepMatchday(direction) {
+      const days = matchdays();
+      const index = days.indexOf(Number(selectedMatchday));
+      const nextIndex = Math.min(days.length - 1, Math.max(0, index + direction));
+      if (nextIndex < 0 || days[nextIndex] === undefined) return;
+      selectedMatchday = days[nextIndex];
+      renderMatchdayViews();
+    }
+
+    function renderMatchdayViews() {
+      const days = matchdays();
+      const index = days.indexOf(Number(selectedMatchday));
+      const select = document.getElementById('predict-day-select');
+      if (selectedMatchday !== null) select.value = String(selectedMatchday);
+      document.getElementById('predict-day-prev').disabled = index <= 0;
+      document.getElementById('predict-day-next').disabled = index < 0 || index >= days.length - 1;
+
+      const dayMatches = matches
+        .filter(match => Number(match.matchday) === Number(selectedMatchday))
+        .sort((a, b) => new Date(a.kickoff_datetime) - new Date(b.kickoff_datetime));
+      document.getElementById('predict-list').innerHTML = dayMatches.length
+        ? dayMatches.map(matchCard).join('')
+        : '<div class="card empty">No matches in this matchday.</div>';
+      document.getElementById('matches-title').textContent = selectedMatchday ? 'Matchday ' + selectedMatchday : 'Matches';
+      document.getElementById('matches-list').innerHTML = dayMatches.length
+        ? dayMatches.map(fixtureCard).join('')
+        : '<div class="card empty">No fixtures available.</div>';
+      document.getElementById('stat-open').textContent = dayMatches.filter(match => match.can_edit && !match.user_prediction).length;
     }
 
     function renderUpcoming() {
@@ -595,6 +783,52 @@
         </article>`;
     }
 
+    function fixtureCard(match) {
+      const golden = Boolean(match.is_golden);
+      const hasResult = match.home_score !== null && match.home_score !== '' &&
+        match.away_score !== null && match.away_score !== '';
+      const prediction = match.user_prediction;
+      const centre = hasResult
+        ? `${escapeHtml(match.home_score)}–${escapeHtml(match.away_score)}`
+        : formatTime(match.kickoff_datetime);
+      const note = prediction
+        ? `Your prediction: ${escapeHtml(prediction.pred_home_score)}–${escapeHtml(prediction.pred_away_score)}`
+        : (match.can_edit ? 'Prediction still open' : 'No prediction submitted');
+      return `
+        <article class="card fixture-card ${golden ? 'golden' : ''}">
+          <div class="match-meta">
+            <span>${formatKickoff(match.kickoff_datetime)}</span>
+            ${golden ? '<span class="golden-tag">★ Golden · ×3</span>' : `<span>${escapeHtml(match.status || 'scheduled')}</span>`}
+          </div>
+          <div class="fixture-row">
+            <span>${escapeHtml(match.home_team)}</span>
+            <span class="score-pill">${centre}</span>
+            <span>${escapeHtml(match.away_team)}</span>
+          </div>
+          <p class="fixture-note">${note}</p>
+        </article>`;
+    }
+
+    function renderStandings() {
+      const list = document.getElementById('standings-list');
+      if (!leaderboard.length) {
+        list.innerHTML = '<div class="empty">The standings will appear here.</div>';
+        return;
+      }
+      list.innerHTML = leaderboard.map((row, index) => {
+        const isMe = String(row.player_id) === String(session && session.player_id);
+        return `
+          <div class="standing-row ${isMe ? 'me' : ''}">
+            <div class="standing-rank">#${escapeHtml(row.rank || index + 1)}</div>
+            <div class="standing-name">
+              <strong>${escapeHtml(row.player_name || 'Player')}${isMe ? ' · You' : ''}</strong>
+              <span>${escapeHtml(row.exact_scores || 0)} exact · ${escapeHtml(row.predictions_submitted || 0)} predictions</span>
+            </div>
+            <div class="standing-points"><b>${escapeHtml(row.total_points || 0)}</b><span>points</span></div>
+          </div>`;
+      }).join('');
+    }
+
     async function savePrediction(event) {
       const form = event.target.closest('.prediction-form');
       if (!form) return;
@@ -632,6 +866,8 @@
           pred_away_score: Number(awayScore),
           points: null
         };
+        const selected = matches.filter(item => Number(item.matchday) === Number(selectedMatchday));
+        document.getElementById('stat-open').textContent = selected.filter(item => item.can_edit && !item.user_prediction).length;
         button.classList.add('saved');
         button.textContent = 'Saved ✓';
         toast(`${match.home_team} ${homeScore}–${awayScore} ${match.away_team} saved.`);
@@ -654,6 +890,12 @@
         weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
         timeZone: 'Europe/Rome'
       }).format(date);
+    }
+
+    function formatTime(value) {
+      return new Intl.DateTimeFormat('en-GB', {
+        hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome'
+      }).format(new Date(value));
     }
 
     function escapeHtml(value) {
