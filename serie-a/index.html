@@ -463,6 +463,23 @@
       text-transform: uppercase;
     }
     .loading-hint { margin: 7px 0 0; color: #6f86a2; font-size: 10px; }
+    .connection-status {
+      margin: 0 0 14px;
+      padding: 10px 12px;
+      border: 1px solid rgba(95,168,255,.28);
+      border-radius: 13px;
+      background: rgba(25,73,119,.22);
+      color: #a9c6e8;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      font-size: 11px;
+      font-weight: 750;
+    }
+    .connection-status.cached { border-color: rgba(255,193,7,.34); color: #e8cf85; }
+    .connection-status.error { border-color: rgba(240,93,103,.45); color: #f1a4aa; }
+    .connection-status .retry-button { flex: 0 0 auto; min-height: 34px; margin: 0; padding: 0 12px; }
 
     .toast {
       position: fixed;
@@ -528,6 +545,7 @@
     </header>
 
     <main id="main-content">
+      <div class="connection-status hidden" id="connection-status" role="status"></div>
       <section class="view" id="view-home">
         <section class="hero">
           <div class="hero-copy">
@@ -584,10 +602,15 @@
   <script>
     const API_URL = 'https://script.google.com/macros/s/AKfycbzvuWJwE2zBxy52tSz6PhZvl8YHMFMiQcqLGpBLfFZmvQsxi_ZFWN0RUbD1jZzlLwZrDg/exec';
     const SESSION_KEY = 'ss_serie_a_session';
+    const DASHBOARD_CACHE_PREFIX = 'ss_serie_a_dashboard_v1_';
+    const DASHBOARD_CACHE_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
+    const API_TIMEOUT_MS = 18000;
     let session = null;
     let matches = [];
     let leaderboard = [];
     let selectedMatchday = null;
+    let dashboardLoading = false;
+    let connectionStatusTimer = null;
 
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('login-form').addEventListener('submit', login);
@@ -612,25 +635,57 @@
       }
     });
 
-    async function api(payload) {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 25000);
-      try {
-        const response = await fetch(API_URL, {
-          method: 'POST',
-          redirect: 'follow',
-          signal: controller.signal,
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(payload)
-        });
-        if (!response.ok) throw new Error('Backend returned HTTP ' + response.status);
-        return response.json();
-      } catch (err) {
-        if (err.name === 'AbortError') throw new Error('Google took too long to respond. Please retry.');
-        throw err;
-      } finally {
-        clearTimeout(timeout);
+    async function api(payload, options = {}) {
+      const retries = Math.max(0, Number(options.retries) || 0);
+      let lastError;
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
+        try {
+          const response = await fetch(API_URL, {
+            method: 'POST',
+            redirect: 'follow',
+            signal: controller.signal,
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(payload)
+          });
+          if (!response.ok) {
+            const error = new Error('Backend returned HTTP ' + response.status);
+            error.retryable = response.status === 429 || response.status >= 500;
+            throw error;
+          }
+          return await response.json();
+        } catch (error) {
+          lastError = normaliseApiError(error);
+          if (attempt >= retries || !lastError.retryable) throw lastError;
+          if (typeof options.onRetry === 'function') {
+            options.onRetry(attempt + 1, retries, lastError);
+          }
+          await wait(800 * Math.pow(2, attempt));
+        } finally {
+          clearTimeout(timeout);
+        }
       }
+      throw lastError;
+    }
+
+    function normaliseApiError(error) {
+      if (error && error.name === 'AbortError') {
+        const timeoutError = new Error('Google is taking too long to respond.');
+        timeoutError.retryable = true;
+        return timeoutError;
+      }
+      if (error && error.retryable !== undefined) return error;
+      if (error && (error.name === 'TypeError' || error.name === 'SyntaxError')) {
+        const connectionError = new Error('The connection to Google was interrupted.');
+        connectionError.retryable = true;
+        return connectionError;
+      }
+      return error instanceof Error ? error : new Error('Could not connect to Google.');
+    }
+
+    function wait(milliseconds) {
+      return new Promise(resolve => setTimeout(resolve, milliseconds));
     }
 
     async function login(event) {
@@ -676,6 +731,7 @@
 
     function logout() {
       if (!confirm('Log out?')) return;
+      clearDashboardCache();
       localStorage.removeItem(SESSION_KEY);
       session = null;
       matches = [];
@@ -687,48 +743,150 @@
     }
 
     async function loadDashboard() {
+      if (dashboardLoading || !session) return;
+      dashboardLoading = true;
       const list = document.getElementById('upcoming-list');
       const loading = '<div class="card loading"><div class="spinner"></div>Loading Serie A…<p class="loading-hint">The first connection may take a few seconds.</p></div>';
-      list.innerHTML = loading;
-      document.getElementById('predict-list').innerHTML = loading;
-      document.getElementById('matches-list').innerHTML = loading;
+      const cached = readDashboardCache();
+      if (cached) {
+        applyDashboardData(cached, true);
+        showConnectionStatus('Showing saved data · reconnecting to Google…', 'cached');
+      } else {
+        list.innerHTML = loading;
+        document.getElementById('predict-list').innerHTML = loading;
+        document.getElementById('matches-list').innerHTML = loading;
+        showConnectionStatus('Connecting to Google…');
+      }
       try {
         const auth = {
           player_id: session.player_id,
           session_token: session.session_token
         };
-        const leaderboardPromise = loadLeaderboard(auth);
-        const matchResult = await api({ action: 'serieAGetMatches', ...auth });
-        if (!matchResult.success) throw new Error(matchResult.error || 'Could not load matches');
-        matches = matchResult.matches || [];
-        selectedMatchday = defaultMatchday();
-        renderUpcoming();
-        prepareMatchdayPicker();
-        renderMatchdayViews();
-        await leaderboardPromise;
+        let result = await api({ action: 'serieAGetDashboard', ...auth }, {
+          retries: 1,
+          onRetry: () => showConnectionStatus(
+            cached ? 'Saved data available · retrying Google…' : 'Connection interrupted · retrying…',
+            cached ? 'cached' : ''
+          )
+        });
+        // Safe deployment order: the new frontend still works while the Apps
+        // Script deployment is being updated to add the combined endpoint.
+        if (!result.success && /unknown action/i.test(result.error || '')) {
+          result = await loadLegacyDashboard(auth, cached);
+        }
+        if (!result.success) throw new Error(result.error || 'Could not load the dashboard');
+        applyDashboardData(result, false);
+        writeDashboardCache();
+        showConnectionStatus('Updated just now');
+        hideConnectionStatus(2200);
       } catch (err) {
         if (/session|authentication/i.test(err.message)) return expireSession();
-        const errorCard = loadErrorCard('Could not load the fixtures.');
-        list.innerHTML = errorCard;
-        document.getElementById('predict-list').innerHTML = errorCard;
-        document.getElementById('matches-list').innerHTML = errorCard;
-        toast(err.message, true);
+        if (cached) {
+          showConnectionStatus('Refresh failed · saved data remains available.', 'error', true);
+          toast('Could not refresh. You can keep using the saved data.', true);
+        } else {
+          const errorCard = loadErrorCard('Could not load the fixtures.');
+          list.innerHTML = errorCard;
+          document.getElementById('predict-list').innerHTML = errorCard;
+          document.getElementById('matches-list').innerHTML = errorCard;
+          document.getElementById('standings-list').innerHTML = loadErrorCard('Could not load the standings.', false);
+          showConnectionStatus(err.message || 'Could not connect to Google.', 'error', true);
+        }
+      } finally {
+        dashboardLoading = false;
       }
     }
 
-    async function loadLeaderboard(auth) {
-      try {
-        const result = await api({ action: 'serieAGetLeaderboard', ...auth });
-        if (!result.success) throw new Error(result.error || 'Could not load standings');
-        leaderboard = result.leaderboard || [];
-        const mine = leaderboard.find(row => String(row.player_id) === String(session.player_id));
-        document.getElementById('stat-points').textContent = mine ? mine.total_points : 0;
-        document.getElementById('stat-rank').textContent = mine ? '#' + mine.rank : '—';
-        renderStandings();
-      } catch (err) {
-        if (/session|authentication/i.test(err.message)) return expireSession();
-        document.getElementById('standings-list').innerHTML = loadErrorCard('Could not load the standings.', false);
+    async function loadLegacyDashboard(auth, cached) {
+      const retryStatus = () => showConnectionStatus(
+        cached ? 'Saved data available · retrying Google…' : 'Connection interrupted · retrying…',
+        cached ? 'cached' : ''
+      );
+      const matchResult = await api({ action: 'serieAGetMatches', ...auth }, {
+        retries: 1, onRetry: retryStatus
+      });
+      if (!matchResult.success) return matchResult;
+      const leaderboardResult = await api({ action: 'serieAGetLeaderboard', ...auth }, {
+        retries: 1, onRetry: retryStatus
+      });
+      if (!leaderboardResult.success) return leaderboardResult;
+      matchResult.leaderboard = leaderboardResult.leaderboard || [];
+      return matchResult;
+    }
+
+    function applyDashboardData(result, fromCache) {
+      matches = Array.isArray(result.matches) ? result.matches.map(match => ({ ...match })) : [];
+      leaderboard = Array.isArray(result.leaderboard) ? result.leaderboard : [];
+      if (fromCache) {
+        const now = Date.now();
+        matches.forEach(match => {
+          const kickoff = new Date(match.kickoff_datetime).getTime();
+          if (Number.isFinite(kickoff) && kickoff <= now) {
+            match.can_edit = false;
+            match.locked = true;
+          }
+        });
       }
+      const availableDays = matchdays();
+      if (!availableDays.includes(Number(selectedMatchday))) selectedMatchday = defaultMatchday();
+      renderUpcoming();
+      prepareMatchdayPicker();
+      renderMatchdayViews();
+      const mine = leaderboard.find(row => String(row.player_id) === String(session.player_id));
+      document.getElementById('stat-points').textContent = mine ? mine.total_points : 0;
+      document.getElementById('stat-rank').textContent = mine ? '#' + mine.rank : '—';
+      renderStandings();
+    }
+
+    function dashboardCacheKey() {
+      return session ? DASHBOARD_CACHE_PREFIX + String(session.player_id) : '';
+    }
+
+    function readDashboardCache() {
+      const key = dashboardCacheKey();
+      if (!key) return null;
+      try {
+        const cached = JSON.parse(localStorage.getItem(key) || 'null');
+        if (!cached || !Array.isArray(cached.matches) || !Array.isArray(cached.leaderboard) ||
+            !Number.isFinite(cached.saved_at) || Date.now() - cached.saved_at > DASHBOARD_CACHE_MAX_AGE) {
+          localStorage.removeItem(key);
+          return null;
+        }
+        return cached;
+      } catch (_) {
+        localStorage.removeItem(key);
+        return null;
+      }
+    }
+
+    function writeDashboardCache() {
+      const key = dashboardCacheKey();
+      if (!key) return;
+      try {
+        localStorage.setItem(key, JSON.stringify({
+          saved_at: Date.now(), matches, leaderboard
+        }));
+      } catch (_) { /* Storage can be unavailable in private browsing. */ }
+    }
+
+    function clearDashboardCache() {
+      const key = dashboardCacheKey();
+      if (key) localStorage.removeItem(key);
+    }
+
+    function showConnectionStatus(message, kind = '', withRetry = false) {
+      clearTimeout(connectionStatusTimer);
+      const element = document.getElementById('connection-status');
+      element.className = 'connection-status' + (kind ? ' ' + kind : '');
+      element.innerHTML = `<span>${escapeHtml(message)}</span>` +
+        (withRetry ? '<button class="retry-button" type="button" data-retry-load>Retry</button>' : '');
+    }
+
+    function hideConnectionStatus(delay = 0) {
+      clearTimeout(connectionStatusTimer);
+      connectionStatusTimer = setTimeout(() => {
+        document.getElementById('connection-status').classList.add('hidden');
+      }, delay);
     }
 
     function handleContentClick(event) {
@@ -744,6 +902,7 @@
     }
 
     function expireSession() {
+      clearDashboardCache();
       localStorage.removeItem(SESSION_KEY);
       session = null;
       document.getElementById('app').classList.add('hidden');
@@ -972,6 +1131,7 @@
           pred_away_score: Number(awayScore),
           points: null
         };
+        writeDashboardCache();
         const selected = matches.filter(item => Number(item.matchday) === Number(selectedMatchday));
         document.getElementById('stat-open').textContent = selected.filter(item => item.can_edit && !item.user_prediction).length;
         button.classList.add('saved');

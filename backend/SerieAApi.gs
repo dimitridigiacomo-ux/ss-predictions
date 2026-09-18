@@ -16,6 +16,11 @@ function handleSerieARequest_(params) {
         params.player_id,
         params.session_token
       );
+    case 'serieAGetDashboard':
+      return getSerieADashboard(
+        params.player_id,
+        params.session_token
+      );
     case 'serieASubmitPrediction':
       return submitSerieAPrediction(
         params.player_id,
@@ -36,6 +41,25 @@ function handleSerieARequest_(params) {
 
 function getSerieAMatches(playerId, sessionToken) {
   requireSerieASession_(playerId, sessionToken);
+  return buildSerieAMatchesResponse_(playerId);
+}
+
+/**
+ * Loads fixtures and standings after one authentication check. The frontend
+ * uses this endpoint to avoid two simultaneous Apps Script requests and two
+ * ContentService redirects on every dashboard refresh.
+ */
+function getSerieADashboard(playerId, sessionToken) {
+  requireSerieASession_(playerId, sessionToken);
+  const matchResult = buildSerieAMatchesResponse_(playerId);
+  if (!matchResult.success) return matchResult;
+  const leaderboardResult = buildSerieALeaderboardResponse_();
+  if (!leaderboardResult.success) return leaderboardResult;
+  matchResult.leaderboard = leaderboardResult.leaderboard;
+  return matchResult;
+}
+
+function buildSerieAMatchesResponse_(playerId) {
 
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   const matchSheet = spreadsheet.getSheetByName(SERIE_A_CONFIG.sheetName);
@@ -199,6 +223,10 @@ function submitSerieAPrediction(playerId, sessionToken, matchId, home, away) {
 
 function getSerieALeaderboard(playerId, sessionToken) {
   requireSerieASession_(playerId, sessionToken);
+  return buildSerieALeaderboardResponse_();
+}
+
+function buildSerieALeaderboardResponse_() {
   const sheet = SpreadsheetApp.getActiveSpreadsheet()
     .getSheetByName(SERIE_A_PLAYER_SHEETS.leaderboard);
   if (!sheet) return { success: false, error: 'Serie A leaderboard is not configured' };
